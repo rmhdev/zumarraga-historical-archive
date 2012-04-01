@@ -1,6 +1,10 @@
+#!/usr/local/bin python
+# -*- coding: utf-8 -*-
+
 import requests
 from bs4 import BeautifulSoup
 import re
+import codecs
 
 uri = 'http://dos.cgssl.net/Zumarraga/ArchivoHistorico/BuscadorBautizos.aspx'
 
@@ -26,31 +30,50 @@ parameters_search = {
     'ctl00$ContentPlaceHolder1$cmdBuscar'               : 'Buscar',
 }
 
-f = open('test.html', 'r')
-html = f.read()
-f.close()
 
-soup = BeautifulSoup(html)
-parameters_aspx['__VIEWSTATE']          = soup.find('input', id='__VIEWSTATE').get('value')
-parameters_aspx['__EVENTVALIDATION']    = soup.find('input', id='__EVENTVALIDATION').get('value')
-parameters = dict( parameters_aspx.items() + parameters_search.items() )
+def get_data_from_html(html):
+    soup = BeautifulSoup(html)
+    table = soup.find('table', id='ctl00_ContentPlaceHolder1_gvResultados')
+    result = []
+    for row in table.find_all('tr', recursive=False):
+        result.append(get_data_from_row(row))
+    return result
 
-headers = {
-    'User-Agent' : ''
-}
-req = requests.post('http://httpbin.org/post', data=parameters, headers=headers)
-html = req.text
-print html
-exit()
+def get_data_from_row(row): 
+    cols = row.find_all('td', recursive=False)
+    if len(cols) != 5:
+        return ""
+    return get_data_from_cols(cols)
 
-soup = BeautifulSoup(html)
-table = soup.find('table', id='ctl00_ContentPlaceHolder1_gvResultados')
-for rows in table.find_all('tr', recursive=False):
-    cols = rows.find_all('td', recursive=False)
-    if len(cols) == 5:
-        id = re.findall(r'\d+', cols[4].find('a').get('href'))[0]
-        name = cols[0].string.strip()
-        surname1 = cols[1].string.strip()
-        surname2 = cols[2].string.strip()
-        birthday = cols[3].string.strip()
-        print '"%s";"%s";"%s";"%s";"%s"' % (id, name, surname1, surname2, birthday)
+def get_data_from_cols(cols):
+    id = re.findall(r'\d+', cols[4].find('a').get('href'))[0]
+    name = cols[0].string.strip()
+    surname1 = cols[1].string.strip()
+    surname2 = cols[2].string.strip()
+    birthday = cols[3].string.strip()
+    return '"%s";"%s";"%s";"%s";"%s"' % (id, name, surname1, surname2, birthday)
+
+if __name__ == "__main__":
+    f = open('test.html', 'r')
+    html = f.read()
+    f.close()
+
+    soup = BeautifulSoup(html)
+    parameters_aspx['__VIEWSTATE']          = soup.find('input', id='__VIEWSTATE').get('value')
+    parameters_aspx['__EVENTVALIDATION']    = soup.find('input', id='__EVENTVALIDATION').get('value')
+    parameters = dict( parameters_aspx.items() + parameters_search.items() )
+
+    headers = {
+        'User-Agent' : 'Mozilla/5.0 (Windows; U; Windows NT 5.1; es-ES)'
+    }
+    req = requests.post(uri, data=parameters, headers=headers)
+    if req.status_code != 200:
+        print "error!"
+        exit()
+
+    html = req.text
+    #print html
+
+    f = codecs.open( 'result.txt', 'w', 'utf-8' )
+    f.write("\n".join(get_data_from_html(html)))
+    f.close()
