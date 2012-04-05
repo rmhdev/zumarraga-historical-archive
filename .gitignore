@@ -1,4 +1,5 @@
 .DS_STORE
-scrapping/test.html
-scrapping/result.txt
-scrapping/page*
+scraping/test.html
+scraping/result.txt
+scraping/page*
+scraping/result.csv
