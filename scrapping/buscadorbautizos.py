@@ -5,15 +5,15 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import codecs
+import time
 
 def get_uri():
-    return 'http://httpbin.org/post'
-    #return 'http://dos.cgssl.net/Zumarraga/ArchivoHistorico/BuscadorBautizos.aspx'
+    return 'http://dos.cgssl.net/Zumarraga/ArchivoHistorico/BuscadorBautizos.aspx'
 
 def get_default_parameters(): 
     return {
         '__EVENTTARGET'     : 'ctl00$ContentPlaceHolder1$gvResultados',
-        '__EVENTARGUMENT'   : 'Page$1',
+        '__EVENTARGUMENT'   : '',
         '__LASTFOCUS'       : '',
         '__VIEWSTATE'       : '',
         '__EVENTVALIDATION' : '',
@@ -36,15 +36,6 @@ def get_http_headers():
         'User-Agent' : 'Mozilla/5.0 (Windows; U; Windows NT 5.1; es-ES)'
     }
 
-def prepare_parameters():
-    f = open('test.html', 'r')
-    html = f.read()
-    f.close()
-    soup = BeautifulSoup(html)
-    parameters = get_default_parameters()
-    parameters['__VIEWSTATE']          = soup.find('input', id='__VIEWSTATE').get('value')
-    parameters['__EVENTVALIDATION']    = soup.find('input', id='__EVENTVALIDATION').get('value') 
-    return parameters
 
 def get_data_from_html(html):
     soup = BeautifulSoup(html)
@@ -70,16 +61,52 @@ def get_data_from_cols(cols):
 
 def parse_and_save_to_file(html, file_name): 
     f = codecs.open( file_name, 'w', 'utf-8' )
+    f.write('"%s";"%s";"%s";"%s";"%s"' % ('id', 'name', 'surname1', 'surname2', 'birthday'))
     f.write("\n".join(get_data_from_html(html)))
     f.close()
 
-if __name__ == "__main__":
-    req = requests.post(get_uri(), data=prepare_parameters(), headers=get_http_headers())
+def request_initialized_parameters(): 
+    req = requests.get(get_uri(), headers=get_http_headers())
+    if req.status_code != 200:
+        print "error requesting initialized parameters"
+        exit()
+    return get_parameters_from_html(req.text)
+
+def get_parameters_from_html(html):
+    soup = BeautifulSoup(html)
+    parameters = get_default_parameters()
+    parameters['__VIEWSTATE']          = soup.find('input', id='__VIEWSTATE').get('value')
+    parameters['__EVENTVALIDATION']    = soup.find('input', id='__EVENTVALIDATION').get('value') 
+    return parameters
+
+def format_eventargument(page = 1):
+    return 'Page$%d' % page
+
+def update_parameters_with_page(page, parameters):
+    parameters['__EVENTARGUMENT'] = format_eventargument(page) if (page > 1) else ''
+    if (page > 1):
+        del parameters['ctl00$ContentPlaceHolder1$cmdBuscar']
+    return parameters
+
+def request_page_and_save(parameters, filename):
+    req = requests.post(get_uri(), data=parameters, headers=get_http_headers())
     if req.status_code != 200:
         print "error!"
         exit()
     html = req.text
-    print html
-    exit()
-    parse_and_save_to_file(html, 'result.txt')
+    parse_and_save_to_file(html, filename)
+    return get_parameters_from_html(html)
+
+if __name__ == "__main__":
+    pages = [1, 2, 3]
+    print "retrieving initial page"
+    parameters = request_initialized_parameters()
+    time.sleep(1)
+    for page in pages:
+        parameters = update_parameters_with_page(page, parameters)
+        #print requests.post("http://httpbin.org/post", data=parameters, headers=get_http_headers()).text
+        print "retrieving page %d..." % page
+        parameters = request_page_and_save(parameters, 'page-%s.txt' % page)
+        time.sleep(1)
+
 
