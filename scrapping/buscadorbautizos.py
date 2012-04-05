@@ -7,6 +7,7 @@ import re
 import codecs
 import time
 
+
 def get_uri():
     return 'http://dos.cgssl.net/Zumarraga/ArchivoHistorico/BuscadorBautizos.aspx'
 
@@ -42,7 +43,9 @@ def get_data_from_html(html):
     table = soup.find('table', id='ctl00_ContentPlaceHolder1_gvResultados')
     result = []
     for row in table.find_all('tr', recursive=False):
-        result.append(get_data_from_row(row))
+        data_from_row = get_data_from_row(row)
+        if (data_from_row):
+            result.append(data_from_row)
     return result
 
 def get_data_from_row(row): 
@@ -53,17 +56,19 @@ def get_data_from_row(row):
 
 def get_data_from_cols(cols):
     id = re.findall(r'\d+', cols[4].find('a').get('href'))[0]
-    name = cols[0].string.strip()
-    surname1 = cols[1].string.strip()
-    surname2 = cols[2].string.strip()
-    birthday = cols[3].string.strip()
-    return '"%s";"%s";"%s";"%s";"%s"' % (id, name, surname1, surname2, birthday)
+    name = cols[0].string
+    surname1 = cols[1].string
+    surname2 = cols[2].string
+    birthday = cols[3].string
+    return unify_cols_data(id, name, surname1, surname2, birthday)
 
 def parse_and_save_to_file(html, file_name): 
     f = codecs.open( file_name, 'w', 'utf-8' )
-    f.write('"%s";"%s";"%s";"%s";"%s"' % ('id', 'name', 'surname1', 'surname2', 'birthday'))
     f.write("\n".join(get_data_from_html(html)))
     f.close()
+
+def unify_cols_data(id, name, surname1, surname2, birthday):
+    return ";".join([id, name.strip(), surname1.strip(), surname2.strip(), birthday.strip()])
 
 def request_initialized_parameters(): 
     req = requests.get(get_uri(), headers=get_http_headers())
@@ -98,15 +103,15 @@ def request_page_and_save(parameters, filename):
     return get_parameters_from_html(html)
 
 if __name__ == "__main__":
-    pages = [1, 2, 3]
+    #12927 results / 60 result per page = 215.45 pages
     print "retrieving initial page"
     parameters = request_initialized_parameters()
     time.sleep(1)
-    for page in pages:
+    for page in range(1, 216+1):
         parameters = update_parameters_with_page(page, parameters)
         #print requests.post("http://httpbin.org/post", data=parameters, headers=get_http_headers()).text
         print "retrieving page %d..." % page
         parameters = request_page_and_save(parameters, 'page-%s.txt' % page)
-        time.sleep(1)
+        time.sleep(2)
 
 
